@@ -19,10 +19,10 @@
 #  - meltano/meltano/base:<base_sha>-python<version>
 meltano_base:
   extends: .build_base
-  only:
-    changes:
-      - docker/base/Dockerfile
-      - poetry.lock
+  # only:
+  #   changes:
+  #     - docker/base/Dockerfile
+  #     - poetry.lock
 
 # Manages:
 #  - <fork namespace>/meltano/base:<base_sha>-python<version>
