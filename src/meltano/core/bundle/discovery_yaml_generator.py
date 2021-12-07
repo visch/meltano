@@ -7,26 +7,30 @@ import pathlib
 yaml = YAML()
 
 DISCOVERY_VERSION = 19
-MELTANO_DIR = "discovery_definitions/"
-DISCOVERY_FILE = "discovery_new.yml"
+ABSOLUTE_PATH = str(pathlib.Path(__file__).parent.resolve())
+MELTANO_DIR = f"{ABSOLUTE_PATH}/discovery_definitions/"
+DISCOVERY_FILE = f"{ABSOLUTE_PATH}/discovery.yml"
+HEADER_COMMENT = [
+    "# Increment this version number whenever the schema of discovery.yml is changed.\n",
+    "# See https://www.meltano.com/docs/contributor-guide.html#discovery-yml-version for more information.\n"
+]
+discovery_dict: Dict[str, Any] = {}
+discovery_dict["version"] = DISCOVERY_VERSION
 
-def generate_discovery_yaml():
-    discovery_dict: Dict[str, Any] = {}
-    discovery_dict["version"] = DISCOVERY_VERSION
+for root, subdir, files in os.walk(MELTANO_DIR):
+    meltano_type = re.sub(MELTANO_DIR, "", root)
+    if meltano_type == "":
+        continue
+    meltano_array = []
 
-    for root, subdir, files in os.walk(MELTANO_DIR):
-        meltano_type = re.sub(MELTANO_DIR, "", root)
-        if meltano_type == "":
-            continue
-        meltano_array = []
+    for file in files:
+        with open(os.path.join(root, file), "r") as plugin_file:
+            plugin_data = yaml.load(plugin_file)
 
-        for file in files:
-            with open(os.path.join(root, file), "r") as plugin_file:
-                plugin_data = yaml.load(plugin_file)
+        meltano_array.append(plugin_data)
 
-            meltano_array.append(plugin_data)
+    discovery_dict[meltano_type] = meltano_array
 
-        discovery_dict[meltano_type] = meltano_array
-
-    with open(str(pathlib.Path(__file__).parent.resolve()) + "/" + DISCOVERY_FILE, "w") as outfile:
-        yaml.dump(discovery_dict, outfile)
+with open(DISCOVERY_FILE, "w") as outfile:
+    outfile.writelines(HEADER_COMMENT)
+    yaml.dump(discovery_dict, outfile)
