@@ -5,14 +5,22 @@ from deepdiff import DeepDiff
 from deepdiff.helper import CannotCompare
 
 from pprint import pprint
+import requests
 
 yaml = YAML()
 
-with open("discovery.yml", "r") as meltano_file:
-    meltano = yaml.load(meltano_file)
+MELTANO_DISCOVERY_URL = "https://gitlab.com/meltano/meltano/-/raw/\
+    master/src/meltano/core/bundle/discovery.yml"
 
-with open("discovery_new.yml", "r") as hub_file:
-    hub = yaml.load(hub_file)
+resp = requests.get(MELTANO_DISCOVERY_URL)
+resp.raise_for_status()
+data = resp.content
+endpoint_version = yaml.load(data)
+
+
+with open("discovery.yml", "r") as meltano_file:
+    generated_version = yaml.load(meltano_file)
+
 
 def compare_func(x, y):
     try:
@@ -21,8 +29,8 @@ def compare_func(x, y):
         raise CannotCompare() from None
 
 ddiff = DeepDiff(
-        meltano,
-        hub, 
+        endpoint_version,
+        generated_version, 
         verbose_level=2, 
         get_deep_distance=True, 
         cutoff_distance_for_pairs=1, 
@@ -32,9 +40,9 @@ ddiff = DeepDiff(
     )
 
 if len(ddiff) == 0:
-    print("Generated discovery_new.yml matches Meltano discovery.yml")
+    print("Generated discovery.yml matches Meltano endpoint discovery.yml")
     sys.exit()
 else:
-    print("Generated discovery_new.yml does not match Meltano discovery.yml")
+    print("Generated discovery.yml does not match Meltano endpoint discovery.yml")
     pprint(ddiff, indent = 2)
     sys.exit(1)
