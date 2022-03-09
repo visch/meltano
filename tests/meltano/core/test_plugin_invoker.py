@@ -1,21 +1,20 @@
-import os
-from unittest import mock
-
 import dotenv
 import pytest
+import pytest_asyncio
+
 from meltano.core.plugin.command import UndefinedEnvVarError
 from meltano.core.plugin_invoker import UnknownCommandError
 from meltano.core.venv_service import VirtualEnv
 
 
 class TestPluginInvoker:
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def plugin_invoker(self, utility, session, plugin_invoker_factory):
         subject = plugin_invoker_factory(utility)
         async with subject.prepared(session):
             yield subject
 
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def nonpip_plugin_invoker(self, nonpip_tap, session, plugin_invoker_factory):
         subject = plugin_invoker_factory(nonpip_tap)
         async with subject.prepared(session):
