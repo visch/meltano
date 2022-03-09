@@ -54,7 +54,7 @@ lint_eslint:
 .pytest:
   extends: .test
   script:
-    - poetry run pytest -v --cov-report= --cov meltano -m "$PYTEST_MARKERS"
+    - poetry run pytest -v --cov-report= --cov meltano -m "$PYTEST_MARKERS" --durations=10 --durations-min=5.0
     - poetry run coverage combine .coverage
     - poetry run coverage report
     - poetry run coverage html
