@@ -353,7 +353,6 @@ def add_plugin(
 
     return plugin
 
-
 def add_related_plugins(
     project,
     plugins,
