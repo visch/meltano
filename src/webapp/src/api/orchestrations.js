@@ -27,6 +27,10 @@ export default {
     return axios.post(utils.apiUrl('orchestrations', `extract/${extractor}`))
   },
 
+  getExtractorInFocusEntities(extractor) {
+    return axios.post(utils.apiUrl('orchestrations', `entities/${extractor}`))
+  },
+
   getJobLog({ jobId }) {
     return axios.get(utils.apiUrl('orchestrations', `jobs/${jobId}/log`))
   },
@@ -64,6 +68,13 @@ export default {
     return axios.put(
       utils.apiUrl('orchestrations', `${type}/${name}/configuration`),
       payload
+    )
+  },
+
+  selectEntities(extractorEntities) {
+    return axios.post(
+      utils.apiUrl('orchestrations', 'select-entities'),
+      extractorEntities
     )
   },
 

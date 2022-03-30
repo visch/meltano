@@ -2,10 +2,11 @@ import Router from 'vue-router'
 
 import Design from '@/components/analyze/Design'
 import Explore from '@/components/analyze/Explore'
+import EntitiesSelectorModal from '@/components/extractors/EntitiesSelectorModal'
 import CreatePipelineScheduleModal from '@/components/pipelines/CreatePipelineScheduleModal'
+import CronJobModal from '@/components/pipelines/CronJobModal'
 import LogModal from '@/components/pipelines/LogModal'
 import PluginSettingsModal from '@/components/pipelines/PluginSettingsModal'
-import CronJobModal from '@/components/pipelines/CronJobModal'
 
 import Analyze from '@/views/Analyze'
 import Dashboard from '@/views/Dashboard'
@@ -46,6 +47,20 @@ const router = new Router({
           meta: {
             isModal: true,
             title: 'Meltano: Data Extractor Configuration'
+          }
+        },
+
+        {
+          path: 'extractor-entity/:plugin',
+          name: 'extractorEntities',
+          components: {
+            default: Plugins,
+            extractorEntities: EntitiesSelectorModal
+          },
+          props: { extractorSettings: { pluginType: 'extractors' } },
+          meta: {
+            isModal: true,
+            title: 'Meltano: Extractor Entities'
           }
         }
       ]

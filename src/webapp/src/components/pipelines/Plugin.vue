@@ -87,8 +87,16 @@ export default {
   methods: {
     ...mapActions('plugins', ['addPlugin', 'installPlugin']),
     goToSettings() {
+      console.log(this.name)
       this.$router.push({
         name: `${this.singularizedType}Settings`,
+        params: { plugin: this.name }
+      })
+    },
+    goToEntities() {
+      console.log(this.name)
+      this.$router.push({
+        name: 'extractorEntities',
         params: { plugin: this.name }
       })
     },
@@ -132,9 +140,11 @@ export default {
           </p>
           <div v-if="isInstalled" class="buttons">
             <button class="button" @click="goToSettings">
-              <span>Configure</span>
+              <span>Configure Extractor</span>
             </button>
-
+            <button class="button" @click="goToEntities(name)">
+              <span>Entities Selector</span>
+            </button>
             <router-link
               class="button tooltip is-borderless"
               :data-tooltip="getPipelinesTooltip"

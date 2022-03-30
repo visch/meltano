@@ -39,6 +39,7 @@ from meltano.core.schedule_service import (
     ScheduleDoesNotExistError,
     ScheduleService,
 )
+from meltano.core.select_service import SelectService
 from meltano.core.setting_definition import SettingKind
 from meltano.core.utils import flatten, iso8601_datetime, slugify
 from werkzeug.exceptions import Conflict, UnprocessableEntity
@@ -178,6 +179,71 @@ def _handle(ex):  # noqa: F811
 @orchestrationsBP.errorhandler(MissingJobLogException)
 def _handle(ex):  # noqa: F811
     return (jsonify({"error": False, "code": str(ex)}), 204)
+
+@orchestrationsBP.route("/select-entities", methods=["POST"])
+def selectEntities() -> Response:
+    """
+    endpoint that performs selection of the user selected entities and attributes
+    """
+    project = Project.find()
+    incoming = request.get_json()
+    extractor_name = incoming["extractor_name"]
+    entity_groups = incoming["entity_groups"]
+    select_service = SelectService(project, extractor_name)
+
+    for entity_group in entity_groups:
+        group_is_selected = "selected" in entity_group
+
+        for attribute in entity_group["attributes"]:
+            if group_is_selected or "selected" in attribute:
+                entities_filter = entity_group["name"]
+                attributes_filter = attribute["name"]
+                select_service.select(entities_filter, attributes_filter)
+
+    return jsonify("winning")
+
+
+@orchestrationsBP.route("/entities/<extractor_name>", methods=["POST"])
+def entities(extractor_name: str) -> Response:
+    """
+    endpoint that returns the entities associated with a particular extractor
+    """
+    project = Project.find()
+    select_service = SelectService(project, extractor_name)
+
+    entity_groups = []
+    try:
+        list_all = select_service.list_all(db.session)
+
+        for stream, prop in (
+            (stream, prop)
+            for stream in list_all.streams
+            for prop in list_all.properties[stream.key]
+        ):
+            match = next(
+                (
+                    entityGroup
+                    for entityGroup in entity_groups
+                    if entityGroup["name"] == stream.key
+                ),
+                None,
+            )
+            if match:
+                match["attributes"].append({"name": prop.key})
+            else:
+                entity_groups.append(
+                    {"name": stream.key, "attributes": [{"name": prop.key}]}
+                )
+
+        entity_groups = sorted(entity_groups, key=lambda k: k["name"])
+        for entityGroup in entity_groups:
+            entityGroup["attributes"] = sorted(
+                entityGroup["attributes"], key=lambda k: k["name"]
+            )
+    except (PluginExecutionError, PluginLacksCapabilityError) as e:
+        logging.warning(str(e))
+
+    return jsonify({"extractor_name": extractor_name, "entity_groups": entity_groups})
 
 
 @orchestrationsBP.route("/jobs/state", methods=["POST"])
