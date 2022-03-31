@@ -64,6 +64,7 @@ class TestSingerBlocks:
     def mock_target_plugin_invoker(self, process_mock_factory, target):
         target_process = process_mock_factory(target)
         target_process.stdin = mock.MagicMock()
+        target_process.stdin.wait_closed = CoroutineMock()
 
         invoker = Mock()
         invoker.invoke_async = CoroutineMock(return_value=target_process)
@@ -189,3 +190,19 @@ class TestSingerBlocks:
             ]
 
             assert cap_logs == expected_lines
+
+    @pytest.mark.asyncio
+    async def test_singer_block_close_stdin(
+        self, elt_context, mock_target_plugin_invoker
+    ):
+        block = SingerBlock(
+            block_ctx=elt_context,
+            project=elt_context.project,
+            plugins_service=elt_context.plugins_service,
+            plugin_invoker=mock_target_plugin_invoker,
+            plugin_args={"foo": "bar"},
+        )
+        await block.start()
+        await block.close_stdin()
+        assert block.consumer
+        assert block.process_handle.stdin.wait_closed.call_count == 1
