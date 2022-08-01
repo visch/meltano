@@ -146,6 +146,7 @@ jobs:
       run: |
         poetry env use "3.9"
         poetry install
+        exit 1
 
     - name: Combine coverage data and display human readable report
       run: |
