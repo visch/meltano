@@ -66,6 +66,7 @@ jobs:
 
     - name: Configure Poetry
       run: |
+        exit 1
         poetry env use "${{ matrix.python-version }}"
         poetry debug
 
