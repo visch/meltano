@@ -68,6 +68,7 @@ jobs:
       run: |
         poetry env use "${{ matrix.python-version }}"
         poetry debug
+        exit 1
 
     - name: Start Postgres Container
       if: always() && (matrix.backend-db == 'postgresql')
@@ -146,7 +147,6 @@ jobs:
       run: |
         poetry env use "3.9"
         poetry install
-        exit 1
 
     - name: Combine coverage data and display human readable report
       run: |
