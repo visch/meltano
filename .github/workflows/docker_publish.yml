@@ -37,7 +37,7 @@ jobs:
           is-default-python: false
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v3.3.0
 
     - name: Get Meltano version
       id: get-meltano-version
