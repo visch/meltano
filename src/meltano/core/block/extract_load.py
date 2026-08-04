@@ -24,7 +24,7 @@ from meltano.core.runner import RunnerError
 from meltano.core.state_service import StateService
 
 from .blockset import BlockSet, BlockSetValidationError
-from .future_utils import first_failed_future, handle_producer_line_length_limit_error
+from .future_utils import first_failed_future, handle_line_length_limit_error
 from .singer import SingerBlock
 
 if t.TYPE_CHECKING:
@@ -710,6 +710,22 @@ class ELBExecutionManager:
             self._intermediate_codes,
         )
 
+    def _failed_output_stream_name(self, failed_future: asyncio.Task) -> str:
+        """Name the plugin stream whose output handler failed.
+
+        Args:
+            failed_future: The output handler future that failed.
+
+        Returns:
+            A human-readable name for the stream, e.g. `"'tap-gitlab' stderr"`.
+        """
+        for block in self.elb.blocks:
+            if block.proxy_stdout() == failed_future:
+                return f"'{block.string_id}' stdout"
+            if block.proxy_stderr() == failed_future:
+                return f"'{block.string_id}' stderr"
+        return "a plugin output stream"  # pragma: no cover
+
     async def _complete_upstream(self) -> None:
         """Wait for the upstream blocks to complete."""
         producer = self.elb.head
@@ -768,14 +784,14 @@ class ELBExecutionManager:
             output_exception_future,
             done,
         ):
-            # Special behavior for a producer stdout handler raising a line
-            # length limit error.
-            if self.elb.head.proxy_stdout() == output_futures_failed:
-                handle_producer_line_length_limit_error(
-                    output_futures_failed.exception(),
-                    line_length_limit=self.line_length_limit,
-                    stream_buffer_size=self.stream_buffer_size,
-                )
+            # Special behavior for an output handler raising a line length
+            # limit error.
+            handle_line_length_limit_error(
+                output_futures_failed.exception(),
+                line_length_limit=self.line_length_limit,
+                stream_buffer_size=self.stream_buffer_size,
+                stream_name=self._failed_output_stream_name(output_futures_failed),
+            )
             raise output_futures_failed.exception()
 
         # If all the output handlers completed without raising an

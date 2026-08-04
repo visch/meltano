@@ -41,23 +41,26 @@ def first_failed_future(exception_future: Task, done: set[Task]) -> Task | None:
     return None
 
 
-def handle_producer_line_length_limit_error(
+def handle_line_length_limit_error(
     exception: BaseException,
+    *,
     line_length_limit: int,
     stream_buffer_size: int,
+    stream_name: str,
 ) -> None:
-    """Handle `asyncio.LimitOverrunError` from producers.
+    """Handle `asyncio.LimitOverrunError` from any plugin output stream.
 
     Args:
         exception: The exception to handle, which should be a `ValueError` with
             a `asyncio.LimitOverrunError` as its context.
-        line_length_limit: The message size limit.
+        line_length_limit: The line length limit.
         stream_buffer_size: The stream buffer size.
+        stream_name: A human-readable name for the stream that exceeded the
+            limit, e.g. `"'tap-gitlab' stderr"`.
 
     Raises:
         RunnerError: An exception raised from the `asyncio.LimitOverrunError`.
     """
-    # TODO: reuse from runner/singer.py
     # StreamReader.readline can raise a ValueError wrapping a LimitOverrunError:
     # https://github.com/python/cpython/blob/v3.12.7/Lib/asyncio/streams.py#L577
     if not isinstance(exception, ValueError):
@@ -68,13 +71,13 @@ def handle_producer_line_length_limit_error(
         return
 
     logger.error(
-        "The extractor generated a message exceeding the message size limit "  # noqa: G004
+        f"A line written to {stream_name} exceeded the line length limit "  # noqa: G004
         f"of {human_size(line_length_limit)} (half the buffer size "
         f"of {human_size(stream_buffer_size)}).",
     )
     logger.error(
-        "To let this message be processed, increase the 'elt.buffer_size' "
-        "setting to at least double the size of the largest expected message, "
+        "To let this line be processed, increase the 'elt.buffer_size' "
+        "setting to at least double the size of the largest expected line, "
         "and try again.",
     )
     logger.error(

@@ -784,8 +784,84 @@ class TestCliEltScratchpadOne:
                         None,
                         None,
                         (
-                            "The extractor generated a message exceeding the "
-                            "message size limit of 50.0MiB (half the buffer "
+                            "A line written to 'tap-mock' stdout exceeded the "
+                            "line length limit of 50.0MiB (half the buffer "
+                            "size of 100.0MiB)."
+                        ),
+                        "error",
+                    ),
+                ],
+            )
+
+            assert exception_logged(
+                result.stdout + result.stderr,
+                CliError(
+                    "ELT could not be completed: Output line length limit exceeded.\n"
+                    + failure_help_log_suffix(job_logs_file),
+                ),
+            )
+
+    @pytest.mark.backend("sqlite")
+    @pytest.mark.usefixtures("use_test_log_config", "project")
+    @pytest.mark.parametrize("command", ("elt", "el"), ids=["elt", "el"])
+    def test_elt_tap_stderr_line_length_limit_error(
+        self,
+        cli_runner,
+        tap,
+        target,
+        tap_process,
+        target_process,
+        job_logging_service,
+        command: str,
+    ) -> None:
+        state_id = f"pytest_test_{command}_stderr_limit"
+        args = [command, "--state-id", state_id, tap.name, target.name]
+
+        # Raise a `ValueError` wrapping a `LimitOverrunError`, like
+        # `StreamReader.readline` does:
+        # https://github.com/python/cpython/blob/v3.12.7/Lib/asyncio/streams.py#L577
+        try:
+            raise asyncio.LimitOverrunError(  # noqa: TRY003, TRY301
+                "Separator is found, but chunk is longer than limit",  # noqa: EM101
+                0,
+            )
+        except asyncio.LimitOverrunError as err:
+            try:
+                # `ValueError` needs to be raised from inside the except block
+                # for `LimitOverrunError` so that `__context__` is set.
+                raise ValueError(str(err))  # noqa: TRY301
+            except ValueError as wrapper_err:
+                tap_process.stderr.readline.side_effect = wrapper_err
+
+        # Have `tap_process.wait` take 1s to make sure the `LimitOverrunError`
+        # exception can be raised before tap finishes
+        async def wait_mock():
+            await asyncio.sleep(1)
+            return tap_process.wait.return_value
+
+        tap_process.wait.side_effect = wait_mock
+
+        invoke_async = AsyncMock(side_effect=(tap_process, target_process))
+        with mock.patch.object(
+            PluginInvoker,
+            "invoke_async",
+            new=invoke_async,
+        ) as invoke_async:
+            result = cli_runner.invoke(cli, args)
+            assert result.exit_code == 1
+            assert "Output line length limit exceeded" in str(result.exception)
+            job_logs_file = job_logging_service.get_all_logs(state_id)[0]
+
+            assert_log_lines(
+                result.stdout + result.stderr,
+                [
+                    LogEntry("meltano", None, "Running extract & load...", "info"),
+                    LogEntry(
+                        None,
+                        None,
+                        (
+                            "A line written to 'tap-mock' stderr exceeded the "
+                            "line length limit of 50.0MiB (half the buffer "
                             "size of 100.0MiB)."
                         ),
                         "error",

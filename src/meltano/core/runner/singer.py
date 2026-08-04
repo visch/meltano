@@ -8,10 +8,10 @@ import typing as t
 
 import structlog
 
+from meltano.core.block.future_utils import handle_line_length_limit_error
 from meltano.core.logging import capture_subprocess_output
 from meltano.core.plugin import PluginType
 from meltano.core.runner import Runner, RunnerError
-from meltano.core.utils import human_size
 
 if t.TYPE_CHECKING:
     from meltano.core.elt_context import ELTContext
@@ -105,6 +105,13 @@ class SingerRunner(Runner):  # noqa: D101
             capture_subprocess_output(p_target.stderr, loader_log),
         )
 
+        output_stream_names = {
+            tap_stdout_future: f"'{tap.plugin.name}' stdout",
+            tap_stderr_future: f"'{tap.plugin.name}' stderr",
+            target_stdout_future: f"'{target.plugin.name}' stdout",
+            target_stderr_future: f"'{target.plugin.name}' stderr",
+        }
+
         # Wait for tap or target to complete, or for one of the output handlers
         # to raise an exception.
         tap_process_future = asyncio.ensure_future(p_tap.wait())
@@ -136,17 +143,16 @@ class SingerRunner(Runner):  # noqa: D101
                 if future.exception() is not None
             ]:
                 # If any output handler raised an exception, re-raise it.
-
-                # Special behavior for the tap stdout handler raising a line
-                # length limit error.
-                if tap_stdout_future in output_futures_failed:
-                    self._handle_tap_line_length_limit_error(
-                        tap_stdout_future.exception(),
-                        line_length_limit=line_length_limit,
-                        stream_buffer_size=stream_buffer_size,
-                    )
-
                 failed_future = output_futures_failed.pop()
+
+                # Special behavior for an output handler raising a line
+                # length limit error.
+                handle_line_length_limit_error(
+                    failed_future.exception(),
+                    line_length_limit=line_length_limit,
+                    stream_buffer_size=stream_buffer_size,
+                    stream_name=output_stream_names[failed_future],
+                )
                 raise failed_future.exception()
 
             # If all of the output handlers completed without raising an
@@ -242,34 +248,3 @@ class SingerRunner(Runner):  # noqa: D101
                 extractor_out=extractor_out,
                 loader_out=loader_out,
             )
-
-    def _handle_tap_line_length_limit_error(
-        self,
-        exception,  # noqa: ANN001
-        line_length_limit,  # noqa: ANN001
-        stream_buffer_size,  # noqa: ANN001
-    ) -> None:
-        # StreamReader.readline can raise a ValueError wrapping a LimitOverrunError:
-        # https://github.com/python/cpython/blob/v3.12.7/Lib/asyncio/streams.py#L577
-        if not isinstance(exception, ValueError):
-            return
-
-        exception = exception.__context__
-        if not isinstance(exception, asyncio.LimitOverrunError):  # pragma: no cover
-            return
-
-        logger.error(
-            f"The extractor generated a message exceeding the message size "  # noqa: G004
-            f"limit of {human_size(line_length_limit)} (half the buffer size "
-            f"of {human_size(stream_buffer_size)}).",
-        )
-        logger.error(
-            "To let this message be processed, increase the 'elt.buffer_size' "
-            "setting to at least double the size of the largest expected "
-            "message, and try again.",
-        )
-        logger.error(
-            "To learn more, visit "
-            "https://docs.meltano.com/reference/settings#eltbuffer_size",
-        )
-        raise RunnerError("Output line length limit exceeded") from exception  # noqa: EM101, TRY003
